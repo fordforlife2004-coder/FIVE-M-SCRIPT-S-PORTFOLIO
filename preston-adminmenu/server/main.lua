@@ -349,8 +349,7 @@ end }
 
 Actions.reportGoto = { perm = 'reports', run = function(src, p)
     if not allowed(src, 'teleport') then fail("You don't have permission to teleport.") end
-    local report = Reports.get(p.id)
-    return Actions.gotoPlayer.run(src, { target = report.reporter })
+    return Actions.gotoPlayer.run(src, { target = Reports.reporterOf(p.id) })
 end }
 
 Actions.logs = { perm = 'logs', run = function()
@@ -450,8 +449,16 @@ AddEventHandler('onResourceStart', function(resource)
         for mode in pairs(MODES) do Player(n).state:set('presAdmin_' .. mode, false, true) end
     end
     CreateThread(function()
-        Storage.init()
-        Bans.load()
+        -- Keep trying if the database isn't up yet; players who join meanwhile wait (see bans.lua).
+        while true do
+            local ok, problem = pcall(function()
+                Storage.init()
+                Bans.load()
+            end)
+            if ok then break end
+            print(('[preston-admin] Could not load the saved bans (%s). Trying again in 15 seconds.'):format(tostring(problem)))
+            Wait(15000)
+        end
         local count = 0
         for _ in pairs(Bans.list) do count = count + 1 end
         print(('[preston-admin] v2 ready: %d active bans, saved with %s.'):format(count, Storage.backend))

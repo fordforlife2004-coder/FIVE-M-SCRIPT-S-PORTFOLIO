@@ -4,6 +4,8 @@
 **Discord:** Preston D. #2674 
 **Freelance Scriptor/Developer**
 
+[![Tests](https://github.com/fordforlife2004-coder/FIVE-M-SCRIPT-S-PORTFOLIO/actions/workflows/tests.yml/badge.svg)](https://github.com/fordforlife2004-coder/FIVE-M-SCRIPT-S-PORTFOLIO/actions/workflows/tests.yml)
+
 ## What I've built
 Standalone FiveM scripts: no QBCore or ESX needed. Each v2 script has the server check what players do, a config file, plain-language docs and tests that run outside the game.
 
@@ -16,7 +18,6 @@ Standalone FiveM scripts: no QBCore or ESX needed. Each v2 script has the server
 | [Iowa Police v2](preston-iowapolice/) | Iowa State Patrol and Sheriff vehicles with unit-number plates, for whitelisted police |
 | [Prest_Sector Cuffs](Prest_Sector-Cuffs/) | Realistic handcuffing: real cuffs on the wrists, the arrest animation, escort and putting suspects in vehicles |
 | [Prest_Sector CAD](Prest_Sector-CAD/) | Computer aided dispatch and police records on an in-game tablet: calls, units, 911 and panic, people, vehicles, reports, warrants, BOLOs and a plate reader |
-| [Hello](scriptname/) | `/hello`, my first script |
 
 ## Preston Admin Menu v2
 An in-game admin panel where the server checks every action. It has saved bans that block rejoining, player reports, spectate, server-controlled noclip and god mode, Discord logs, and tests.
@@ -63,20 +64,23 @@ See [Prest_Sector-CAD](Prest_Sector-CAD/) for the roles, commands and setup.
 ![Prest_Sector CAD dispatch board](Prest_Sector-CAD/docs/cad-dispatch.png)
 
 ## Original v1 scripts
-The first versions are still in the repo for comparison: `adminmenu!`, `ServerAdminConfig` and `Serverlua` (Admin Menu v1), `ELS-LIGHTING`, `Iowa Police-Skin!`, `Vheicle-Skins` and `vehicle-spawn`.
+The first versions are kept in [legacy-v1](legacy-v1/) for comparison, with what replaced each one.
 
-Admin Menu v1 features:
-- /adminhelp (check perm)
-- /kick ID reason
-- /ban ID reason
-- /tp ID (teleport to player)
-- /bring ID (bring player to you)
-- /god (toggle)
-- /noclip (toggle with WASD + space/ctrl)
-- /car [model]
-- /fix (fix car)
-- /del (delete car)
-- /plist (list all players)
+## Updates
+Every script tells the server console when a newer version is out on GitHub. It only downloads that
+script's `fxmanifest.lua` from this repository, and nothing about your server or players is sent. To
+turn it off, add `set prest_check_updates false` to `server.cfg`.
+
+What's new in the November 2026 update:
+- **Admin Menu 2.1.0**: reports stop pointing at a player once they leave, so staff can't be sent to
+  (or message) whoever gets that server ID next. Only the newest 100 closed reports are kept. Discord
+  logs go out up to 10 at a time, wait when Discord asks, and can't pile up forever if Discord is down.
+  Players who join while the saved bans are still loading wait for them instead of skipping the check.
+- **All scripts**: the update check above, and new version numbers (2.1.0 for the v2 scripts, 1.1.0
+  for Cuffs and CAD).
+- **The repository**: every test suite and a syntax check of every file run on each push
+  ([Tests](.github/workflows/tests.yml)), `run-tests.sh` runs them all at once, and the v1 files moved
+  into [legacy-v1](legacy-v1/).
 
 ## How to test
 1. Copy the script folders you want into your server's `resources` folder.
@@ -90,7 +94,6 @@ ensure preston-vehicleskins
 ensure preston-iowapolice
 ensure Prest_Sector-Cuffs
 ensure Prest_Sector-CAD
-ensure scriptname
 
 add_ace group.admin adminmenu allow
 add_ace group.admin vehiclespawn.staff allow
@@ -102,4 +105,6 @@ add_ace group.admin cad.admin allow
 add_principal identifier.license:YOUR_LICENSE group.admin
 ```
 
-3. Each v2 script's tests run outside the game with any Lua 5.3 or newer, from that script's folder, for example `lua tests/server_spec.lua`.
+3. The tests run outside the game with any Lua 5.3 or newer. `./run-tests.sh` runs every script's
+   tests at once, or run one from that script's folder, for example `lua tests/server_spec.lua`.
+   GitHub runs them all on every push.

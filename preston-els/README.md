@@ -114,6 +114,12 @@ lua tests/client_spec.lua
 - `server_spec.lua` runs the server script in a fake server. Passengers and other players are refused, values are checked, the last driver can only switch things off, a cheat writing the state directly is put back, requests are rate limited, and ACE limits and listed-only mode work.
 - `client_spec.lua` runs the game scripts in a fake game. It covers keys, sounds starting and swapping and always being released, the horn cutting through the siren, old server answers being ignored, refused requests rolling back, getting out, vehicles coming in and out of range, and extras patterns flashing and switching off.
 
+## Changes
+
+### 2.1.0 (November 2026)
+- The server console says when a newer version is on GitHub. It only downloads this script's
+  `fxmanifest.lua` from the repository. Turn it off with `set prest_check_updates false` in `server.cfg`.
+
 ---
 
 Made by Preston D. Standalone, free to use on your server.

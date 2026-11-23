@@ -5,6 +5,13 @@ Reports = { list = {} }
 local U = PrestonAdminUtil
 local nextId = 1
 local lastReportAt = {}
+local KEEP_CLOSED = 100 -- closed reports kept for the menu; older ones are forgotten
+
+-- Server IDs are reused once a player leaves, so a report only points at its reporter while they're
+-- still connected. After that it keeps their name but never reaches whoever gets the ID next.
+local function reporterOnline(report)
+    return not report.reporterLeft and GetPlayerName(report.reporter) ~= nil
+end
 
 local function notify(target, message, tone)
     TriggerClientEvent('preston-admin:toast', target, { message = message, tone = tone or 'info' })
@@ -29,7 +36,7 @@ function Reports.forMenu()
     for _, r in pairs(Reports.list) do
         out[#out + 1] = {
             id = r.id, reporter = r.reporter, reporterName = r.reporterName, message = r.message, createdAt = r.createdAt,
-            status = r.status, claimedBy = r.claimedBy, online = GetPlayerName(r.reporter) ~= nil,
+            status = r.status, claimedBy = r.claimedBy, online = reporterOnline(r),
         }
     end
     -- Open first, then claimed, then closed; newest first within each.
@@ -47,12 +54,32 @@ function Reports.get(id)
     return report
 end
 
+-- The reporter's server ID, for going to them. Fails once they've left.
+function Reports.reporterOf(id)
+    local report = Reports.get(id)
+    if not reporterOnline(report) then
+        error({ userMessage = ('%s has left the server.'):format(report.reporterName or 'The reporter') })
+    end
+    return report.reporter
+end
+
+-- Keeps the newest KEEP_CLOSED closed reports, so a busy server's list doesn't grow forever.
+local function pruneClosed()
+    local closed = {}
+    for _, r in pairs(Reports.list) do
+        if r.status == 'closed' then closed[#closed + 1] = r end
+    end
+    if #closed <= KEEP_CLOSED then return end
+    table.sort(closed, function(a, b) return a.id > b.id end)
+    for i = KEEP_CLOSED + 1, #closed do Reports.list[closed[i].id] = nil end
+end
+
 function Reports.claim(id, adminSrc)
     local report = Reports.get(id)
     if report.status == 'closed' then error({ userMessage = 'That report is already closed.' }) end
     report.status = 'claimed'
     report.claimedBy = GetPlayerName(adminSrc)
-    if GetPlayerName(report.reporter) then notify(report.reporter, ('%s is looking at your report.'):format(report.claimedBy), 'success') end
+    if reporterOnline(report) then notify(report.reporter, ('%s is looking at your report.'):format(report.claimedBy), 'success') end
     return report
 end
 
@@ -60,7 +87,8 @@ function Reports.close(id, adminSrc)
     local report = Reports.get(id)
     report.status = 'closed'
     report.claimedBy = report.claimedBy or GetPlayerName(adminSrc)
-    if GetPlayerName(report.reporter) then notify(report.reporter, 'Your report was closed by staff. Thanks for letting us know.', 'success') end
+    if reporterOnline(report) then notify(report.reporter, 'Your report was closed by staff. Thanks for letting us know.', 'success') end
+    pruneClosed()
     return report
 end
 
@@ -78,7 +106,7 @@ RegisterCommand('report', function(src, args)
     end
     local open = 0
     for _, r in pairs(Reports.list) do
-        if r.reporter == src and r.status ~= 'closed' then open = open + 1 end
+        if r.reporter == src and not r.reporterLeft and r.status ~= 'closed' then open = open + 1 end
     end
     if open >= Config.MaxOpenReportsPerPlayer then
         notify(src, 'You already have reports waiting. Staff will get to them soon.', 'warn')
@@ -94,5 +122,9 @@ RegisterCommand('report', function(src, args)
 end, false)
 
 AddEventHandler('playerDropped', function()
-    lastReportAt[source] = nil
+    local src = source
+    lastReportAt[src] = nil
+    for _, r in pairs(Reports.list) do
+        if r.reporter == src then r.reporterLeft = true end
+    end
 end)

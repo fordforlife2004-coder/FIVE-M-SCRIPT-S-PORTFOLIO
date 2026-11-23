@@ -5,7 +5,9 @@ lua54 'yes'
 name 'Prest_Sector-CAD'
 author 'Preston D'
 description 'Prest_Sector CAD: computer aided dispatch and records on an in-game tablet, checked by the server'
-version '1.0.0'
+version '1.1.0'
+repository 'https://github.com/fordforlife2004-coder/FIVE-M-SCRIPT-S-PORTFOLIO'
+portfolio_folder 'Prest_Sector-CAD' -- this script's folder in the repository, for the update check
 
 -- The server reads where players are (911 calls, units on the map), which needs OneSync.
 dependency '/onesync'
@@ -36,3 +38,6 @@ files {
     'html/css/*.css',
     'html/js/*.js',
 }
+
+-- Says in the server console when a newer version is on GitHub. Turn it off with: set prest_check_updates false
+server_script 'server/version.lua'
