@@ -178,6 +178,12 @@ The 88 tests cover three areas:
 
 The tests check the logic outside the game; the tablet itself was clicked through in a browser.
 
+## Changes
+
+### 1.1.0 (November 2026)
+- The server console says when a newer version is on GitHub. It only downloads this script's
+  `fxmanifest.lua` from the repository. Turn it off with `set prest_check_updates false` in `server.cfg`.
+
 ---
 
 Made by Preston D. Standalone, free to use on your server.

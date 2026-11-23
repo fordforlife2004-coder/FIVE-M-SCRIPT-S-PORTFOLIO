@@ -1,7 +1,7 @@
 -- Saved bans, checked when players connect. A ban matches a player's license, Discord, Steam and
 -- other identifiers plus their hardware tokens, so a new name or a cleared cache doesn't get around it.
 
-Bans = { list = {} }
+Bans = { list = {}, ready = false } -- ready: the saved bans have been loaded
 
 local U = PrestonAdminUtil
 local recentlyLeft = {} -- the last 30 players to leave, so someone who quits mid-incident can still be banned
@@ -16,8 +16,10 @@ local function tokensOf(src)
 end
 
 function Bans.load()
-    Bans.list = {}
-    for _, ban in ipairs(Storage.loadBans()) do Bans.list[ban.id] = ban end
+    local list = {}
+    for _, ban in ipairs(Storage.loadBans()) do list[ban.id] = ban end
+    Bans.list = list
+    Bans.ready = true
 end
 
 function Bans.message(ban)
@@ -118,6 +120,18 @@ AddEventHandler('playerConnecting', function(_, _, deferrals)
     deferrals.defer()
     Wait(0)
     deferrals.update('Checking the ban list...')
+    -- Right after a restart the saved bans may still be loading: wait for them, so nobody slips in
+    -- before the list is there. If the database never answers, let players in rather than lock
+    -- everyone out, and say so in the logs.
+    local waited = 0
+    while not Bans.ready and waited < 20000 do
+        Wait(250)
+        waited = waited + 250
+    end
+    if not Bans.ready then
+        Logs.add(nil, 'Ban check skipped', ('%s joined before the saved bans could be loaded'):format(GetPlayerName(src) or 'unknown'), nil, 'danger')
+        return deferrals.done()
+    end
     local ban = U.findBan(Bans.list, GetPlayerIdentifiers(src), tokensOf(src), os.time(), Config.BanIpAddresses)
     if ban then
         deferrals.done(Bans.message(ban))

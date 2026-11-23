@@ -140,7 +140,22 @@ lua tests/util_spec.lua
 lua tests/server_spec.lua
 ```
 
-`util_spec.lua` tests the helpers: ban lengths, text cleanup, ban matching and rate limits. `server_spec.lua` loads the real server scripts into a small fake FiveM server and checks the rules from start to finish: players without access are refused, each action needs its own permission, immune staff are protected, bans block rejoining with a new account on the same PC, unbans and "recently left" bans work, reports reach staff, faked admin modes are put back, and requests are rate limited.
+`util_spec.lua` tests the helpers: ban lengths, text cleanup, ban matching and rate limits. `server_spec.lua` loads the real server scripts into a small fake FiveM server and checks the rules from start to finish: players without access are refused, each action needs its own permission, immune staff are protected, bans block rejoining with a new account on the same PC, unbans and "recently left" bans work, reports reach staff (and never reach whoever gets a reporter's server ID after they leave), players joining while the bans load wait for them, faked admin modes are put back, Discord logs are batched and wait when Discord asks, and requests are rate limited.
+
+## Changes
+
+### 2.1.0 (November 2026)
+- Reports stop pointing at a player once they leave. Server IDs are reused, so before this "Go to
+  player" on an old report could teleport you to whoever got that ID next, and claiming or closing it
+  messaged them. The report keeps the reporter's name and shows them as gone.
+- Only the newest 100 closed reports are kept, so the list doesn't grow for as long as the server runs.
+- Discord logs are sent up to 10 at a time. When Discord says to slow down, the logs wait and are sent
+  again instead of being lost. If Discord is down for a long time, only the newest 500 wait, and the
+  console says how many older ones were skipped.
+- Right after a restart, players who join while the saved bans are still loading wait for them, so
+  nobody banned slips in. If the database doesn't answer within 20 seconds, players are let in and it's
+  logged, and the server keeps trying to load the bans.
+- The server console says when a newer version is on GitHub (`set prest_check_updates false` turns it off).
 
 ---
 

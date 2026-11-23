@@ -370,6 +370,70 @@ test('reports reach staff, with a cooldown', function()
     eq(after[1].status, 'closed')
 end)
 
+test("a report keeps its reporter's name after they leave, and never reaches whoever gets their ID next", function()
+    assert(join(OTHER, 'Witness'))
+    commands.report(OTHER, { 'a', 'car', 'is', 'on', 'the', 'roof' })
+    leave(OTHER, 'quit')
+    assert(join(OTHER, 'Newcomer')) -- the server hands the free ID to the next player
+    local _, list = rpc(MOD, 'reports')
+    local report
+    for _, r in ipairs(list) do if r.reporterName == 'Witness' then report = r end end
+    eq(report ~= nil, true, 'still listed')
+    eq(report.online, false, 'shown as gone')
+    local ok, message = rpc(ADMIN, 'reportGoto', { id = report.id })
+    eq(ok, false, 'no teleport to the newcomer')
+    contains(message, 'Witness has left')
+    local before = #toClients
+    eq(rpc(MOD, 'reportClaim', { id = report.id }), true)
+    for i = before + 1, #toClients do
+        eq(toClients[i].target == OTHER and toClients[i].name == 'preston-admin:toast', false, 'the newcomer is not told')
+    end
+    commands.report(OTHER, { 'my', 'own', 'report' })
+    contains(sentTo(OTHER, 'preston-admin:toast')[1].message, 'sent to staff', "the newcomer's limit isn't the witness's")
+    leave(OTHER, 'quit')
+end)
+
+test('only the newest 100 closed reports are kept', function()
+    for i = 1, 105 do
+        local id = 100 + i
+        assert(join(id, 'Reporter' .. i))
+        commands.report(id, { 'report', 'number', tostring(i) })
+        leave(id, 'quit')
+    end
+    local _, list = rpc(MOD, 'reports')
+    for _, r in ipairs(list) do
+        if r.status ~= 'closed' then
+            clockMs = clockMs + 2000
+            rpc(MOD, 'reportClose', { id = r.id })
+        end
+    end
+    local _, after = rpc(MOD, 'reports')
+    eq(#after, 100)
+    local newest = 0
+    for _, r in ipairs(after) do newest = math.max(newest, r.id) end
+    eq(newest > 100, true, 'the newest ones stay')
+end)
+
+test('players joining while the saved bans are still loading wait for them', function()
+    Bans.ready = false
+    local realWait, waits = Wait, 0
+    Wait = function() waits = waits + 1 if waits == 3 then Bans.ready = true end end
+    local joined, refusal = join(CHEATER, 'Cheater', { ids = { 'license:cheat' }, tokens = {} })
+    Wait = realWait
+    eq(joined, false, 'still banned')
+    contains(refusal, 'permanent')
+    eq(waits >= 3, true, 'it waited')
+end)
+
+test('if the saved bans never load, players get in and it is logged', function()
+    Bans.ready = false
+    local joined = join(GUEST + 50, 'Latecomer')
+    eq(joined, true)
+    eq(lastLog().action, 'Ban check skipped')
+    Bans.ready = true
+    leave(GUEST + 50, 'quit')
+end)
+
 test('admin modes are set by the server, and tampering is put back', function()
     local ok, enabled = rpc(ADMIN, 'setMode', { mode = 'noclip', enabled = true })
     eq(ok, true)
@@ -471,6 +535,49 @@ test('player lists hide identifiers from staff without that permission', functio
     for _, p in ipairs(forAdmin) do
         for _, id in ipairs(p.identifiers) do eq(id:sub(1, 3) ~= 'ip:', true, 'no IP addresses') end
     end
+end)
+
+test('Discord logs go out in batches, wait when Discord says to, and never pile up forever', function()
+    local realConvar, realThread, realWait, realHttp = GetConvar, CreateThread, Wait, PerformHttpRequest
+    local requests, answers, sendLoop = {}, {}, nil
+    GetConvar = function(name, default) if name == 'preston_admin_webhook' then return 'https://discord.test/hook' end return default end
+    CreateThread = function(fn) sendLoop = fn end
+    PerformHttpRequest = function(_, cb, _, body)
+        requests[#requests + 1] = body.saved
+        local answer = table.remove(answers, 1) or { 204 }
+        cb(answer[1], answer[2])
+    end
+    dofile('server/logs.lua') -- a fresh log module that sees the webhook
+    GetConvar, CreateThread = realConvar, realThread
+    -- Runs the send loop for a number of 1.5 second passes.
+    local function pump(passes)
+        local n = 0
+        Wait = function(ms)
+            n = n + 1
+            if n > passes then error('stop', 0) end
+            clockMs = clockMs + ms
+        end
+        pcall(sendLoop)
+        Wait = realWait
+    end
+
+    for i = 1, 25 do Logs.add(ADMIN, 'Test action ' .. i, 'detail') end
+    answers = { { 429, json.encode({ retry_after = 2 }) } }
+    pump(5)
+    eq(#requests, 4, 'one refused try, then three batches')
+    eq(#requests[1].embeds, 10)
+    eq(requests[2].embeds[1].title, 'Test action 1', 'the refused batch is sent again first')
+    eq(#requests[3].embeds, 10)
+    eq(#requests[4].embeds, 5)
+    eq(#requests[4].allowed_mentions.parse, 0, 'never pings anyone')
+
+    for i = 1, 520 do Logs.add(ADMIN, 'Flood ' .. i) end
+    pump(1)
+    local warned = false
+    for _, line in ipairs(consoleLines) do if line:find('Discord fell behind: 20', 1, true) then warned = true end end
+    eq(warned, true, 'the oldest 20 were dropped, and the console says so')
+    eq(requests[#requests].embeds[1].title, 'Flood 21')
+    PerformHttpRequest = realHttp
 end)
 
 say(('%d passed, %d failed'):format(passed, failed))

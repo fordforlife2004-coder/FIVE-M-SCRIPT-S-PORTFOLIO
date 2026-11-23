@@ -1,0 +1,37 @@
+# Checks every script on each push and pull request: all Lua files must parse, the in-game menus'
+# JavaScript must parse, and every test suite must pass on Lua 5.3 and 5.4 (FiveM runs Lua 5.4).
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lua ${{ matrix.lua }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lua: ['5.3', '5.4']
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: leafo/gh-actions-lua@v13
+        with:
+          luaVersion: ${{ matrix.lua }}
+
+      - name: Every Lua file parses
+        # The v1 originals are pasted all-in-one files (server.cfg lines included), so they're skipped.
+        run: |
+          find . -type f -name '*.lua' -not -path './legacy-v1/*' -not -path './.lua/*' -not -path './.install/*' -print0 \
+            | xargs -0 -n 1 luac -p
+
+      - name: The menus' JavaScript parses
+        run: find . -type f -path '*/html/*' -name '*.js' -not -path './.lua/*' -print0 | xargs -0 -n 1 node --check
+
+      - name: Tests
+        run: bash run-tests.sh
